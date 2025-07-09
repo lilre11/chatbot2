@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}AI Chatbot - Home{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <!-- Hero Section -->
+        <div class="text-center mb-5">
+            <h1 class="display-4 text-primary mb-4">
+                <i class="fas fa-robot me-3"></i>Welcome to AI Chatbot
+            </h1>
+            <p class="lead text-muted">
+                An intelligent chatbot powered by Gemini AI, built with Flask and SQL Server
+            </p>
+        </div>
+
+        <!-- Features Section -->
+        <div class="row mb-5">
+            <div class="col-md-4 text-center mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-brain fa-3x text-primary mb-3"></i>
+                        <h5 class="card-title">Intelligent Responses</h5>
+                        <p class="card-text">Powered by Google's Gemini AI for natural and helpful conversations.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-center mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-database fa-3x text-success mb-3"></i>
+                        <h5 class="card-title">Persistent Storage</h5>
+                        <p class="card-text">All conversations are stored securely in SQL Server database.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-center mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <i class="fas fa-comments fa-3x text-warning mb-3"></i>
+                        <h5 class="card-title">Context Aware</h5>
+                        <p class="card-text">Maintains conversation history for more meaningful interactions.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Start -->
+        <div class="card shadow-sm mb-5">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-rocket me-2"></i>Quick Start</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">Ready to start chatting? Click the button below to begin your conversation with our AI assistant.</p>
+                <a href="{{ url_for('main.chat') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-comment me-2"></i>Start Chatting
+                </a>
+            </div>
+        </div>
+
+        <!-- System Info -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>System Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0">
+                            <li><strong>Backend:</strong> Python Flask</li>
+                            <li><strong>Database:</strong> SQL Server</li>
+                            <li><strong>AI Engine:</strong> Google Gemini</li>
+                            <li><strong>Frontend:</strong> Bootstrap 5</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Features</h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0">
+                            <li><i class="fas fa-check text-success me-2"></i>Real-time conversations</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Message history</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Admin dashboard</li>
+                            <li><i class="fas fa-check text-success me-2"></i>RESTful API</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
