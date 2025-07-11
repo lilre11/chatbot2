@@ -357,7 +357,7 @@ const Chat = ({ user }) => {
         show={showRenameModal}
         onHide={() => setShowRenameModal(false)}
         conversation={selectedConversation}
-        onRename={handleConversationRenamed}
+        onConversationRenamed={handleConversationRenamed}
       />
     </Row>
   );
