@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, current_app
 from datetime import datetime, timedelta
 import uuid
 import sys
@@ -6,7 +6,6 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.gemini_service import GeminiService
-from services.database_service import DatabaseService
 import logging
 
 # Initialize blueprint
@@ -14,8 +13,14 @@ chat_bp = Blueprint('chat', __name__)
 
 # Initialize services
 gemini_service = GeminiService()
-db_service = DatabaseService()
 logger = logging.getLogger(__name__)
+
+def get_db_service():
+    """Get database service from app context."""
+    try:
+        return current_app.db_service
+    except:
+        return None
 
 @chat_bp.route('/send', methods=['POST'])
 def send_message():
@@ -31,15 +36,14 @@ def send_message():
             return jsonify({'error': 'Message cannot be empty'}), 400
         
         # Check if database is available
-        from flask import current_app
         db_working = getattr(current_app, 'db_working', False)
+        db_service = get_db_service()
         
         # Also check if database service is available
-        if db_working:
+        if db_working and db_service:
             try:
                 # Test database connection
-                db_service._check_db_connection()
-                if not db_service.db_available:
+                if not db_service.test_connection():
                     db_working = False
             except:
                 db_working = False
@@ -154,6 +158,10 @@ def get_conversations():
         if not user_id:
             return jsonify({'conversations': []})
         
+        db_service = get_db_service()
+        if not db_service or not db_service.db_available:
+            return jsonify({'conversations': []})
+        
         conversations = db_service.get_user_conversations(user_id)
         
         return jsonify({
@@ -171,6 +179,10 @@ def get_conversation_messages(conversation_id):
         user_id = session.get('user_id')
         if not user_id:
             return jsonify({'error': 'User session required'}), 401
+        
+        db_service = get_db_service()
+        if not db_service or not db_service.db_available:
+            return jsonify({'error': 'Database unavailable'}), 503
         
         # Verify conversation belongs to user
         conversation = db_service.get_conversation(conversation_id)
@@ -199,6 +211,10 @@ def update_conversation(conversation_id):
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Request data required'}), 400
+        
+        db_service = get_db_service()
+        if not db_service or not db_service.db_available:
+            return jsonify({'error': 'Database unavailable'}), 503
         
         # Verify conversation belongs to user
         conversation = db_service.get_conversation(conversation_id)
@@ -232,6 +248,10 @@ def new_conversation():
         
         data = request.get_json() or {}
         title = data.get('title')
+        
+        db_service = get_db_service()
+        if not db_service or not db_service.db_available:
+            return jsonify({'error': 'Database unavailable'}), 503
         
         conversation = db_service.create_conversation(user_id, title)
         if not conversation:

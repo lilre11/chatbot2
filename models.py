@@ -1,26 +1,22 @@
 from datetime import datetime, timedelta
-from flask_sqlalchemy import SQLAlchemy
+from dataclasses import dataclass
+from typing import Optional, List
 
-# This will be initialized by the app factory
-db = SQLAlchemy()
-
-class User(db.Model):
+@dataclass
+class User:
     """User model for storing user information."""
-    __tablename__ = 'users'
+    id: Optional[int] = None
+    username: str = ""
+    email: str = ""
+    created_at: Optional[datetime] = None
+    is_active: bool = True
     
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    is_active = db.Column(db.Boolean, default=True)
-    
-    # Relationship with conversations
-    conversations = db.relationship('Conversation', backref='user', lazy=True, cascade='all, delete-orphan')
-    
-    def __repr__(self):
-        return f'<User {self.username}>'
+    def __post_init__(self):
+        if self.created_at is None:
+            self.created_at = datetime.utcnow()
     
     def to_dict(self):
+        """Convert user to dictionary."""
         # Convert UTC timestamp to UTC+3 for display
         utc_plus_3_created_at = (self.created_at + timedelta(hours=3)).isoformat()
         return {
@@ -31,24 +27,25 @@ class User(db.Model):
             'is_active': self.is_active
         }
 
-class Conversation(db.Model):
+@dataclass
+class Conversation:
     """Conversation model for storing chat sessions."""
-    __tablename__ = 'conversations'
+    id: Optional[int] = None
+    user_id: int = 0
+    title: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    is_active: bool = True
+    message_count: int = 0
     
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    title = db.Column(db.String(200), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    is_active = db.Column(db.Boolean, default=True)
-    
-    # Relationship with messages
-    messages = db.relationship('Message', backref='conversation', lazy=True, cascade='all, delete-orphan')
-    
-    def __repr__(self):
-        return f'<Conversation {self.id}: {self.title}>'
+    def __post_init__(self):
+        if self.created_at is None:
+            self.created_at = datetime.utcnow()
+        if self.updated_at is None:
+            self.updated_at = datetime.utcnow()
     
     def to_dict(self):
+        """Convert conversation to dictionary."""
         # Convert UTC timestamps to UTC+3 for display
         utc_plus_3_created_at = (self.created_at + timedelta(hours=3)).isoformat()
         utc_plus_3_updated_at = (self.updated_at + timedelta(hours=3)).isoformat()
@@ -59,24 +56,25 @@ class Conversation(db.Model):
             'created_at': utc_plus_3_created_at,
             'updated_at': utc_plus_3_updated_at,
             'is_active': self.is_active,
-            'message_count': len(self.messages)
+            'message_count': self.message_count
         }
 
-class Message(db.Model):
+@dataclass
+class Message:
     """Message model for storing individual chat messages."""
-    __tablename__ = 'messages'
+    id: Optional[int] = None
+    conversation_id: int = 0
+    content: str = ""
+    sender_type: str = "user"  # 'user' or 'bot'
+    timestamp: Optional[datetime] = None
+    token_count: int = 0
     
-    id = db.Column(db.Integer, primary_key=True)
-    conversation_id = db.Column(db.Integer, db.ForeignKey('conversations.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    sender_type = db.Column(db.String(20), nullable=False)  # 'user' or 'bot'
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    token_count = db.Column(db.Integer, default=0)
-    
-    def __repr__(self):
-        return f'<Message {self.id}: {self.sender_type}>'
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.utcnow()
     
     def to_dict(self):
+        """Convert message to dictionary."""
         # Convert UTC timestamp to UTC+3 for display
         utc_plus_3_timestamp = (self.timestamp + timedelta(hours=3)).isoformat()
         return {
@@ -88,21 +86,22 @@ class Message(db.Model):
             'token_count': self.token_count
         }
 
-class SystemLog(db.Model):
+@dataclass
+class SystemLog:
     """System log model for tracking application events."""
-    __tablename__ = 'system_logs'
+    id: Optional[int] = None
+    level: str = "INFO"  # 'INFO', 'WARNING', 'ERROR'
+    message: str = ""
+    module: Optional[str] = None
+    user_id: Optional[int] = None
+    timestamp: Optional[datetime] = None
     
-    id = db.Column(db.Integer, primary_key=True)
-    level = db.Column(db.String(20), nullable=False)  # 'INFO', 'WARNING', 'ERROR'
-    message = db.Column(db.Text, nullable=False)
-    module = db.Column(db.String(100), nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    def __repr__(self):
-        return f'<SystemLog {self.id}: {self.level}>'
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.utcnow()
     
     def to_dict(self):
+        """Convert system log to dictionary."""
         # Convert UTC timestamp to UTC+3 for display
         utc_plus_3_timestamp = (self.timestamp + timedelta(hours=3)).isoformat()
         return {

@@ -1,8 +1,9 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from config import Config
 import logging
+import pyodbc
+from urllib.parse import quote_plus
 
 def create_app():
     """Application factory pattern."""
@@ -15,13 +16,39 @@ def create_app():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
-    # Initialize Flask extensions with error handling
-    from models import db
+    # Initialize database connection string
     try:
-        db.init_app(app)
-        app.db_available = True
+        # Create PyDapper connection string
+        connection_string = (
+            f"DRIVER={{{app.config['DB_DRIVER']}}};"
+            f"SERVER={app.config['DB_HOST']},{app.config['DB_PORT']};"
+            f"DATABASE={app.config['DB_NAME']};"
+            f"UID={app.config['DB_USER']};"
+            f"PWD={app.config['DB_PASSWORD']};"
+            f"Timeout=5;"
+        )
+        
+        # Initialize database service
+        from services.database_service import DatabaseService
+        db_service = DatabaseService(connection_string)
+        
+        # Store database service in app context
+        app.db_service = db_service
+        app.db_available = db_service.db_available
+        
+        if app.db_available:
+            # Create tables if they don't exist
+            db_service.create_tables()
+            print("✅ Database initialized successfully")
+            app.db_working = True
+        else:
+            print("⚠️  Database connection failed")
+            app.db_working = False
+            
     except Exception as e:
-        print(f"⚠️  Database extension initialization failed: {e}")
+        print(f"⚠️  Database initialization failed: {e}")
+        print("⚠️  App will run in fallback mode without database")
+        app.db_working = False
         app.db_available = False
     
     # Configure CORS for React frontend
@@ -37,23 +64,6 @@ def create_app():
     # Register main routes
     from routes.main_routes import main_bp
     app.register_blueprint(main_bp, url_prefix='/api')
-    
-    # Create database tables with better error handling
-    if app.db_available:
-        with app.app_context():
-            try:
-                # Import models to ensure they are registered with SQLAlchemy
-                from models import User, Conversation, Message, SystemLog
-                db.create_all()
-                print("✅ Database initialized successfully")
-                app.db_working = True
-            except Exception as e:
-                print(f"⚠️  Database initialization failed: {e}")
-                print("⚠️  App will run in fallback mode without database")
-                app.db_working = False
-    else:
-        app.db_working = False
-        print("⚠️  Database not available - running in AI-only mode")
     
     return app
 

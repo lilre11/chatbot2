@@ -1,9 +1,8 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from services.database_service import DatabaseService
 from services.gemini_service import GeminiService
 import logging
 
@@ -11,16 +10,23 @@ import logging
 admin_bp = Blueprint('admin', __name__)
 
 # Initialize services
-db_service = DatabaseService()
 gemini_service = GeminiService()
 logger = logging.getLogger(__name__)
+
+def get_db_service():
+    """Get database service from app context."""
+    try:
+        return current_app.db_service
+    except:
+        return None
 
 @admin_bp.route('/status', methods=['GET'])
 def system_status():
     """Get system status information."""
     try:
         # Check database connection
-        db_status = db_service.test_connection()
+        db_service = get_db_service()
+        db_status = db_service.test_connection() if db_service else False
         
         # Check Gemini API status
         try:
@@ -33,7 +39,7 @@ def system_status():
             'database': {
                 'status': 'connected' if db_status else 'disconnected',
                 'healthy': db_status,
-                'available': db_service.db_available
+                'available': db_service.db_available if db_service else False
             },
             'ai_service': {
                 'status': 'connected' if ai_status else 'disconnected',
@@ -56,7 +62,8 @@ def get_logs():
     """Get system logs."""
     try:
         # Check if database is available first
-        if not db_service.test_connection():
+        db_service = get_db_service()
+        if not db_service or not db_service.test_connection():
             return jsonify({
                 'error': 'Database unavailable',
                 'logs': [],
@@ -89,7 +96,8 @@ def get_stats():
     """Get system statistics."""
     try:
         # Check if database is available first
-        if not db_service.test_connection():
+        db_service = get_db_service()
+        if not db_service or not db_service.test_connection():
             return jsonify({
                 'error': 'Database unavailable',
                 'users': 0,
@@ -99,20 +107,29 @@ def get_stats():
                 'database_status': 'disconnected'
             })
         
-        from models import User, Conversation, Message, db
-        from sqlalchemy import func
+        from datetime import datetime, timedelta
+        
+        # Get basic counts using PyODBC directly
+        conn = db_service._get_connection()
+        cursor = conn.cursor()
         
         # Get basic counts
-        user_count = db.session.query(func.count(User.id)).scalar() or 0
-        conversation_count = db.session.query(func.count(Conversation.id)).scalar() or 0
-        message_count = db.session.query(func.count(Message.id)).scalar() or 0
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count = cursor.fetchone()[0] or 0
+        
+        cursor.execute("SELECT COUNT(*) FROM conversations")
+        conversation_count = cursor.fetchone()[0] or 0
+        
+        cursor.execute("SELECT COUNT(*) FROM messages")
+        message_count = cursor.fetchone()[0] or 0
         
         # Get active conversations (updated in last 24 hours)
-        from datetime import datetime, timedelta
         yesterday = datetime.utcnow() - timedelta(days=1)
-        active_conversations = db.session.query(func.count(Conversation.id)).filter(
-            Conversation.updated_at >= yesterday
-        ).scalar() or 0
+        cursor.execute("SELECT COUNT(*) FROM conversations WHERE updated_at >= ?", (yesterday,))
+        active_conversations = cursor.fetchone()[0] or 0
+        
+        cursor.close()
+        conn.close()
         
         return jsonify({
             'users': user_count,
@@ -138,20 +155,39 @@ def get_users():
     """Get users list."""
     try:
         # Check if database is available first
-        if not db_service.test_connection():
+        db_service = get_db_service()
+        if not db_service or not db_service.test_connection():
             return jsonify({
                 'error': 'Database unavailable',
                 'users': [],
                 'database_status': 'disconnected'
             })
         
-        from models import User
-        
         limit = int(request.args.get('limit', 50))
-        users = User.query.order_by(User.created_at.desc()).limit(limit).all()
+        
+        # Get users using PyODBC directly
+        conn = db_service._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT TOP (?) * FROM users ORDER BY created_at DESC", (limit,))
+        
+        results = db_service._fetch_all_as_dict(cursor)
+        cursor.close()
+        conn.close()
+        
+        users = []
+        for result in results:
+            from models import User
+            user = User(
+                id=result['id'],
+                username=result['username'],
+                email=result['email'],
+                created_at=result['created_at'],
+                is_active=result['is_active']
+            )
+            users.append(user.to_dict())
         
         return jsonify({
-            'users': [user.to_dict() for user in users],
+            'users': users,
             'database_status': 'connected'
         })
         
