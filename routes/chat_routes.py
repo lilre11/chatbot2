@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, session, current_app
+from flask import Blueprint, request, jsonify, session
 from datetime import datetime, timedelta
 import uuid
 import sys
@@ -6,6 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.gemini_service import GeminiService
+from services.database_service import DatabaseService
 import logging
 
 # Initialize blueprint
@@ -13,14 +14,127 @@ chat_bp = Blueprint('chat', __name__)
 
 # Initialize services
 gemini_service = GeminiService()
+db_service = DatabaseService()
 logger = logging.getLogger(__name__)
 
-def get_db_service():
-    """Get database service from app context."""
+@chat_bp.route('/register', methods=['POST'])
+def register():
+    """Register a new user."""
     try:
-        return current_app.db_service
-    except:
-        return None
+        data = request.get_json()
+        logger.info(f"Registration attempt with data: {data}")
+        
+        if not data or 'username' not in data or 'password' not in data:
+            logger.error("Missing username or password in registration data")
+            return jsonify({'error': 'Username and password are required'}), 400
+        
+        username = data['username'].strip()
+        password = data['password']
+        
+        if not username or not password:
+            logger.error("Empty username or password provided")
+            return jsonify({'error': 'Username and password cannot be empty'}), 400
+        
+        logger.info(f"Checking if user exists with username: {username}")
+        # Check if user already exists
+        existing_user = db_service.get_user_by_username(username)
+        if existing_user:
+            logger.error(f"User already exists with username: {username}")
+            return jsonify({'error': 'User with this username already exists'}), 400
+        
+        logger.info(f"Creating new user with username: {username}")
+        # Create new user
+        user = db_service.create_user(username, password)
+        if not user:
+            logger.error(f"Failed to create user with username: {username}")
+            return jsonify({'error': 'Failed to create user'}), 500
+        
+        # Set session
+        session['user_id'] = user.id
+        session['username'] = user.username
+        logger.info(f"User {user.username} registered successfully")
+        
+        return jsonify({
+            'message': 'User registered successfully',
+            'user': {
+                'id': user.id,
+                'username': user.username
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Registration failed'}), 500
+
+@chat_bp.route('/login', methods=['POST'])
+def login():
+    """Login a user."""
+    try:
+        data = request.get_json()
+        
+        if not data or 'username' not in data or 'password' not in data:
+            return jsonify({'error': 'Username and password are required'}), 400
+        
+        username = data['username'].strip()
+        password = data['password']
+        
+        if not username or not password:
+            return jsonify({'error': 'Username and password cannot be empty'}), 400
+        
+        # Authenticate user
+        user = db_service.authenticate_user(username, password)
+        if not user:
+            return jsonify({'error': 'Invalid username or password'}), 401
+        
+        # Set session
+        session['user_id'] = user.id
+        session['username'] = user.username
+        
+        return jsonify({
+            'message': 'Login successful',
+            'user': {
+                'id': user.id,
+                'username': user.username
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        return jsonify({'error': 'Login failed'}), 500
+
+@chat_bp.route('/logout', methods=['POST'])
+def logout():
+    """Logout a user."""
+    try:
+        session.clear()
+        return jsonify({'message': 'Logout successful'})
+    except Exception as e:
+        logger.error(f"Logout error: {str(e)}")
+        return jsonify({'error': 'Logout failed'}), 500
+
+@chat_bp.route('/me', methods=['GET'])
+def get_current_user():
+    """Get current logged-in user."""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'Not logged in'}), 401
+        
+        user = db_service.get_user_by_id(user_id)
+        if not user:
+            session.clear()
+            return jsonify({'error': 'User not found'}), 404
+        
+        return jsonify({
+            'user': {
+                'id': user.id,
+                'username': user.username
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Get current user error: {str(e)}")
+        return jsonify({'error': 'Failed to get user info'}), 500
 
 @chat_bp.route('/send', methods=['POST'])
 def send_message():
@@ -36,14 +150,15 @@ def send_message():
             return jsonify({'error': 'Message cannot be empty'}), 400
         
         # Check if database is available
+        from flask import current_app
         db_working = getattr(current_app, 'db_working', False)
-        db_service = get_db_service()
         
         # Also check if database service is available
-        if db_working and db_service:
+        if db_working:
             try:
                 # Test database connection
-                if not db_service.test_connection():
+                db_service._check_db_connection()
+                if not db_service.db_available:
                     db_working = False
             except:
                 db_working = False
@@ -65,19 +180,10 @@ def send_message():
         
         # Normal mode with database
         try:
-            # Get or create user session
+            # Check if user is logged in
             user_id = session.get('user_id')
             if not user_id:
-                # Create a guest user for this session
-                session_id = session.get('session_id') or str(uuid.uuid4())
-                session['session_id'] = session_id
-                
-                user = db_service.create_user(f"guest_{session_id[:8]}", f"guest_{session_id[:8]}@chatbot.local")
-                if user:
-                    user_id = user.id
-                    session['user_id'] = user_id
-                else:
-                    raise Exception('Failed to create user session')
+                return jsonify({'error': 'Authentication required. Please login first.'}), 401
             
             # Get or create conversation
             conversation_id = data.get('conversation_id')
@@ -156,11 +262,7 @@ def get_conversations():
     try:
         user_id = session.get('user_id')
         if not user_id:
-            return jsonify({'conversations': []})
-        
-        db_service = get_db_service()
-        if not db_service or not db_service.db_available:
-            return jsonify({'conversations': []})
+            return jsonify({'error': 'Authentication required. Please login first.'}), 401
         
         conversations = db_service.get_user_conversations(user_id)
         
@@ -179,10 +281,6 @@ def get_conversation_messages(conversation_id):
         user_id = session.get('user_id')
         if not user_id:
             return jsonify({'error': 'User session required'}), 401
-        
-        db_service = get_db_service()
-        if not db_service or not db_service.db_available:
-            return jsonify({'error': 'Database unavailable'}), 503
         
         # Verify conversation belongs to user
         conversation = db_service.get_conversation(conversation_id)
@@ -211,10 +309,6 @@ def update_conversation(conversation_id):
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Request data required'}), 400
-        
-        db_service = get_db_service()
-        if not db_service or not db_service.db_available:
-            return jsonify({'error': 'Database unavailable'}), 503
         
         # Verify conversation belongs to user
         conversation = db_service.get_conversation(conversation_id)
@@ -248,10 +342,6 @@ def new_conversation():
         
         data = request.get_json() or {}
         title = data.get('title')
-        
-        db_service = get_db_service()
-        if not db_service or not db_service.db_available:
-            return jsonify({'error': 'Database unavailable'}), 503
         
         conversation = db_service.create_conversation(user_id, title)
         if not conversation:

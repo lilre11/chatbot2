@@ -16,38 +16,22 @@ def create_app():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
-    # Initialize database connection string
+    # Initialize SQLAlchemy database
     try:
-        # Create PyDapper connection string
-        connection_string = (
-            f"DRIVER={{{app.config['DB_DRIVER']}}};"
-            f"SERVER={app.config['DB_HOST']},{app.config['DB_PORT']};"
-            f"DATABASE={app.config['DB_NAME']};"
-            f"UID={app.config['DB_USER']};"
-            f"PWD={app.config['DB_PASSWORD']};"
-            f"Timeout=5;"
-        )
+        from models import db
+        db.init_app(app)
         
-        # Initialize database service
-        from services.database_service import DatabaseService
-        db_service = DatabaseService(connection_string)
-        
-        # Store database service in app context
-        app.db_service = db_service
-        app.db_available = db_service.db_available
-        
-        if app.db_available:
-            # Create tables if they don't exist
-            db_service.create_tables()
-            print("✅ Database initialized successfully")
-            app.db_working = True
-        else:
-            print("⚠️  Database connection failed")
-            app.db_working = False
+        # Test database connection
+        with app.app_context():
+            db.create_all()
             
+        print("✅ SQLAlchemy database initialized successfully")
+        app.db_working = True
+        
     except Exception as e:
         print(f"⚠️  Database initialization failed: {e}")
         print("⚠️  App will run in fallback mode without database")
+        app.db_working = False
         app.db_working = False
         app.db_available = False
     
