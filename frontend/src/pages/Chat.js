@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Row, Col, Card, Form, Button, ListGroup, Modal, Dropdown } from 'react-bootstrap';
-import axios from 'axios';
+import { Row, Col, Card, Form, Button, ListGroup, Modal, Dropdown, Alert } from 'react-bootstrap';
+import api from '../utils/axios';
 import RenameConversationModal from '../components/RenameConversationModal';
 
-const Chat = () => {
+const Chat = ({ user }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [conversations, setConversations] = useState([]);
@@ -12,6 +12,7 @@ const Chat = () => {
   const [showConversationModal, setShowConversationModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState(null);
+  const [error, setError] = useState('');
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -28,20 +29,32 @@ const Chat = () => {
 
   const loadConversations = async () => {
     try {
-      const response = await axios.get('/api/chat/conversations');
+      const response = await api.get('/api/chat/conversations');
       setConversations(response.data.conversations);
+      setError('');
     } catch (error) {
       console.error('Error loading conversations:', error);
+      if (error.response && error.response.status === 401) {
+        setError('Please login to access your conversations.');
+      } else {
+        setError('Failed to load conversations.');
+      }
     }
   };
 
   const loadConversation = async (conversationId) => {
     try {
-      const response = await axios.get(`/api/chat/conversations/${conversationId}/messages`);
+      const response = await api.get(`/api/chat/conversations/${conversationId}/messages`);
       setMessages(response.data.messages);
       setCurrentConversationId(conversationId);
+      setError('');
     } catch (error) {
       console.error('Error loading conversation:', error);
+      if (error.response && error.response.status === 401) {
+        setError('Please login to access conversations.');
+      } else {
+        setError('Failed to load conversation.');
+      }
     }
   };
 
@@ -63,9 +76,11 @@ const Chat = () => {
     setMessages(prev => [...prev, newUserMessage]);
 
     try {
-      const response = await axios.post('/api/chat/send', {
+      const response = await api.post('/api/chat/send', {
         message: userMessage,
         conversation_id: currentConversationId
+      }, {
+        withCredentials: true
       });
 
       // Update conversation ID if this is a new chat
@@ -154,6 +169,14 @@ const Chat = () => {
 
   return (
     <Row className="h-100">
+      {error && (
+        <Col md={12} className="mb-3">
+          <Alert variant="danger" dismissible onClose={() => setError('')}>
+            {error}
+          </Alert>
+        </Col>
+      )}
+      
       {/* Sidebar - Conversation List */}
       <Col md={3} className="d-none d-md-block">
         <Card className="h-100">
@@ -328,7 +351,7 @@ const Chat = () => {
         show={showRenameModal}
         onHide={() => setShowRenameModal(false)}
         conversation={selectedConversation}
-        onRename={handleConversationRenamed}
+        onConversationRenamed={handleConversationRenamed}
       />
     </Row>
   );

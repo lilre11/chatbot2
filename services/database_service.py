@@ -2,6 +2,9 @@ from models import User, Conversation, Message, SystemLog, db
 from datetime import datetime
 from typing import List, Optional, Dict
 import logging
+import secrets
+import hashlib
+import random
 
 class DatabaseService:
     """Service class for database operations."""
@@ -16,7 +19,14 @@ class DatabaseService:
         try:
             from flask import current_app
             self.db_available = getattr(current_app, 'db_working', False)
-        except:
+            
+            # If Flask app context doesn't indicate db is working, test directly
+            if not self.db_available:
+                # Try a simple database query to test connection
+                from models import User
+                User.query.limit(1).first()
+                self.db_available = True
+        except Exception as e:
             self.db_available = False
     
     def _handle_db_error(self, operation: str, error: Exception):
@@ -26,28 +36,53 @@ class DatabaseService:
         return None
 
     # User operations
-    def create_user(self, username: str, email: str) -> Optional[User]:
-        """Create a new user."""
-        if not self.db_available:
-            return None
+    def hash_password(self, password: str) -> str:
+        salt = secrets.token_hex(8)
+        hashed = hashlib.sha256((salt + password).encode()).hexdigest()
+        return f"{salt}${hashed}"
+
+    def verify_password(self, stored: str, password: str) -> bool:
         try:
-            user = User(username=username, email=email)
+            salt, hashed = stored.split('$')
+            return hashlib.sha256((salt + password).encode()).hexdigest() == hashed
+        except Exception:
+            return False
+
+    def create_user(self, username: str, password: str) -> Optional[User]:
+        """Create a new user with username and password."""
+        try:
+            # Check if user already exists
+            existing_user = User.query.filter_by(username=username).first()
+            if existing_user:
+                self.logger.error(f"User with username {username} already exists")
+                return None
+            
+            hashed_pw = self.hash_password(password)
+            self.logger.info(f"Creating user with username: {username}")
+            
+            # Use username as email for backwards compatibility
+            email = f"{username}@local.user"
+            user = User(username=username, email=email, password=hashed_pw, is_active=True)
             db.session.add(user)
             db.session.commit()
-            self.logger.info(f"Created user: {username}")
+            self.logger.info(f"Successfully created user: {username}")
             return user
         except Exception as e:
             db.session.rollback()
-            return self._handle_db_error("create_user", e)
-    
-    def get_user_by_id(self, user_id: int) -> Optional[User]:
-        """Get user by ID."""
-        try:
-            return User.query.get(user_id)
-        except Exception as e:
-            self.logger.error(f"Error getting user by ID: {str(e)}")
+            self.logger.error(f"Error creating user: {str(e)}", exc_info=True)
             return None
-    
+
+    def authenticate_user(self, username: str, password: str) -> Optional[User]:
+        """Authenticate user by username and password."""
+        try:
+            user = User.query.filter_by(username=username).first()
+            if user and hasattr(user, 'password') and self.verify_password(user.password, password):
+                return user
+            return None
+        except Exception as e:
+            self.logger.error(f"Error authenticating user: {str(e)}")
+            return None
+
     def get_user_by_username(self, username: str) -> Optional[User]:
         """Get user by username."""
         try:
@@ -55,6 +90,35 @@ class DatabaseService:
         except Exception as e:
             self.logger.error(f"Error getting user by username: {str(e)}")
             return None
+
+    def get_user_by_id(self, user_id: int) -> Optional[User]:
+        """Get user by ID."""
+        try:
+            return User.query.get(user_id)
+        except Exception as e:
+            self.logger.error(f"Error getting user by ID: {str(e)}")
+            return None
+
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        """Get user by email."""
+        try:
+            return User.query.filter_by(email=email).first()
+        except Exception as e:
+            self.logger.error(f"Error getting user by email: {str(e)}")
+            return None
+
+    def assign_random_usernames_to_legacy(self):
+        """Assign random usernames to users missing a username."""
+        try:
+            users = User.query.filter((User.username == None) | (User.username == '')).all()
+            for user in users:
+                user.username = f"user_{random.randint(1000,9999)}"
+            db.session.commit()
+            self.logger.info(f"Assigned random usernames to {len(users)} legacy users.")
+        except Exception as e:
+            db.session.rollback()
+            self.logger.error(f"Error assigning random usernames: {str(e)}")
+
     
     # Conversation operations
     def create_conversation(self, user_id: int, title: str = None) -> Optional[Conversation]:
@@ -81,13 +145,16 @@ class DatabaseService:
             self.logger.error(f"Error getting conversation: {str(e)}")
             return None
     
-    def get_user_conversations(self, user_id: int, limit: int = 20) -> List[Conversation]:
-        """Get user's conversations."""
+    def get_user_conversations(self, user_id: int, limit: int = None) -> List[Conversation]:
+        """Get only the user's own conversations."""
         try:
-            return Conversation.query.filter_by(
-                user_id=user_id, 
-                is_active=True
-            ).order_by(Conversation.updated_at.desc()).limit(limit).all()
+            query = Conversation.query.filter_by(user_id=user_id).order_by(Conversation.updated_at.desc())
+            if limit is not None:
+                conversations = query.limit(limit).all()
+            else:
+                conversations = query.all()
+            self.logger.info(f"get_user_conversations: user_id={user_id}, count={len(conversations)}, titles={[c.title for c in conversations]}")
+            return conversations
         except Exception as e:
             self.logger.error(f"Error getting user conversations: {str(e)}")
             return []

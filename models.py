@@ -11,11 +11,18 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
     
     # Relationship with conversations
     conversations = db.relationship('Conversation', backref='user', lazy=True, cascade='all, delete-orphan')
+
+    def __init__(self, username, email, password, is_active=True):
+        self.username = username
+        self.email = email
+        self.password = password
+        self.is_active = is_active
     
     def __repr__(self):
         return f'<User {self.username}>'
@@ -59,7 +66,7 @@ class Conversation(db.Model):
             'created_at': utc_plus_3_created_at,
             'updated_at': utc_plus_3_updated_at,
             'is_active': self.is_active,
-            'message_count': len(self.messages)
+            'message_count': len(self.messages) if self.messages else 0
         }
 
 class Message(db.Model):

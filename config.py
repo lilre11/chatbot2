@@ -8,27 +8,34 @@ class Config:
     """Configuration class for the Flask application."""
     
     # Flask configuration
-    SECRET_KEY = os.environ.get('FLASK_SECRET_KEY') or 'dev-secret-key-change-in-production'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     DEBUG = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
+    ENV = os.environ.get('FLASK_ENV', 'development')
     
     # Database configuration
-    DB_HOST = os.environ.get('DB_HOST', '192.168.1.137')
+    DB_HOST = os.environ.get('DB_HOST', '192.168.1.147')
     DB_PORT = os.environ.get('DB_PORT', '1433')
     DB_NAME = os.environ.get('DB_NAME', 'chatbot_db')
     DB_USER = os.environ.get('DB_USER', 'sa')
     DB_PASSWORD = os.environ.get('DB_PASSWORD', '')
     DB_DRIVER = os.environ.get('DB_DRIVER', 'ODBC Driver 17 for SQL Server')
     
+    # Use DATABASE_URL if provided, otherwise construct from components
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    
     # Construct database URI with proper URL encoding
     from urllib.parse import quote_plus
     
     # Create fallback database URI for when SQL Server is unavailable
     try:
-        SQLALCHEMY_DATABASE_URI = (
-            f"mssql+pyodbc://{quote_plus(DB_USER)}:{quote_plus(DB_PASSWORD)}"
-            f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-            f"?driver={quote_plus(DB_DRIVER)}&timeout=5"
-        )
+        if DATABASE_URL:
+            SQLALCHEMY_DATABASE_URI = DATABASE_URL
+        else:
+            SQLALCHEMY_DATABASE_URI = (
+                f"mssql+pyodbc://{quote_plus(DB_USER)}:{quote_plus(DB_PASSWORD)}"
+                f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+                f"?driver={quote_plus(DB_DRIVER)}&timeout=5"
+            )
     except:
         # Fallback to SQLite for development if SQL Server fails
         SQLALCHEMY_DATABASE_URI = 'sqlite:///chatbot_fallback.db'
@@ -46,3 +53,50 @@ class Config:
     # Chat configuration
     MAX_CONVERSATION_HISTORY = 10
     DEFAULT_RESPONSE = "I'm sorry, I couldn't process your request at the moment. Please try again."
+    
+    # Security configuration
+    BCRYPT_LOG_ROUNDS = int(os.environ.get('BCRYPT_LOG_ROUNDS', 12))
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
+    SESSION_COOKIE_HTTPONLY = os.environ.get('SESSION_COOKIE_HTTPONLY', 'True').lower() == 'true'
+    SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+    
+    # Rate limiting
+    RATELIMIT_STORAGE_URL = os.environ.get('RATELIMIT_STORAGE_URL', 'memory://')
+    RATELIMIT_DEFAULT = os.environ.get('RATELIMIT_DEFAULT', '200 per day;50 per hour;10 per minute')
+    
+    # Logging configuration
+    LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
+    LOG_FORMAT = os.environ.get('LOG_FORMAT', 'json')
+    
+    # CORS configuration
+    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
+    
+    # Admin configuration
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin_password_change_this')
+
+class DevelopmentConfig(Config):
+    """Development configuration."""
+    DEBUG = True
+    SQLALCHEMY_TRACK_MODIFICATIONS = True
+
+class ProductionConfig(Config):
+    """Production configuration."""
+    DEBUG = False
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Strict'
+
+class TestingConfig(Config):
+    """Testing configuration."""
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    WTF_CSRF_ENABLED = False
+
+# Configuration mapping
+config = {
+    'development': DevelopmentConfig,
+    'production': ProductionConfig,
+    'testing': TestingConfig,
+    'default': DevelopmentConfig
+}
