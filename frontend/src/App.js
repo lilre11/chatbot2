@@ -7,14 +7,12 @@ import Chat from './pages/Chat';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
 import Footer from './components/Footer';
-import axios from 'axios';
+import api from './utils/axios';
 import './App.css';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   // Check if user is logged in on app start
   useEffect(() => {
@@ -23,9 +21,7 @@ function App() {
 
   const checkAuth = async () => {
     try {
-      const response = await axios.get(`${apiBaseUrl}/api/chat/me`, {
-        withCredentials: true
-      });
+      const response = await api.get('/api/chat/me');
       setUser(response.data.user);
     } catch (error) {
       // User not logged in
@@ -41,9 +37,7 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await axios.post(`${apiBaseUrl}/api/chat/logout`, {}, {
-        withCredentials: true
-      });
+      await api.post('/api/chat/logout');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {

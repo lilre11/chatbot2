@@ -1,6 +1,15 @@
 // Utility functions for chat API operations
 import axios from 'axios';
 
+// Create axios instance for API calls
+export const chatApi = axios.create({
+  baseURL: '/api',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 /**
  * Rename a conversation
  * @param {number} conversationId - The ID of the conversation to rename
@@ -9,7 +18,7 @@ import axios from 'axios';
  */
 export const renameConversation = async (conversationId, newTitle) => {
   try {
-    const response = await axios.put(`/api/chat/conversations/${conversationId}`, {
+    const response = await chatApi.put(`/chat/conversations/${conversationId}`, {
       title: newTitle
     });
     return response.data.conversation;
@@ -25,7 +34,7 @@ export const renameConversation = async (conversationId, newTitle) => {
  */
 export const getConversations = async () => {
   try {
-    const response = await axios.get('/api/chat/conversations');
+    const response = await chatApi.get('/chat/conversations');
     return response.data.conversations;
   } catch (error) {
     console.error('Error fetching conversations:', error);
@@ -40,7 +49,7 @@ export const getConversations = async () => {
  */
 export const createNewConversation = async (title = null) => {
   try {
-    const response = await axios.post('/api/chat/new-conversation', {
+    const response = await chatApi.post('/chat/new-conversation', {
       title: title
     });
     return response.data.conversation;
@@ -57,7 +66,7 @@ export const createNewConversation = async (title = null) => {
  */
 export const getConversationMessages = async (conversationId) => {
   try {
-    const response = await axios.get(`/api/chat/conversations/${conversationId}/messages`);
+    const response = await chatApi.get(`/chat/conversations/${conversationId}/messages`);
     return response.data;
   } catch (error) {
     console.error('Error fetching conversation messages:', error);
@@ -73,7 +82,7 @@ export const getConversationMessages = async (conversationId) => {
  */
 export const sendMessage = async (message, conversationId = null) => {
   try {
-    const response = await axios.post('/api/chat/send', {
+    const response = await chatApi.post('/chat/send', {
       message: message,
       conversation_id: conversationId
     });

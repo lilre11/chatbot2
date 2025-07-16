@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert } from 'react-bootstrap';
-import axios from 'axios';
+import api from '../utils/axios';
 
 function Login({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -10,8 +10,6 @@ function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,11 +32,9 @@ function Login({ onLogin }) {
       }
 
       const endpoint = isLogin ? '/api/chat/login' : '/api/chat/register';
-      const response = await axios.post(`${apiBaseUrl}${endpoint}`, {
+      const response = await api.post(endpoint, {
         username,
         password
-      }, {
-        withCredentials: true
       });
 
       setSuccess(response.data.message);

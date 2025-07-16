@@ -70,7 +70,9 @@ def register():
 def login():
     """Login a user."""
     try:
+        logger.info(f"Login attempt - Session before: {dict(session)}")
         data = request.get_json()
+        logger.info(f"Login request data: {data}")
         
         if not data or 'username' not in data or 'password' not in data:
             return jsonify({'error': 'Username and password are required'}), 400
@@ -89,6 +91,7 @@ def login():
         # Set session
         session['user_id'] = user.id
         session['username'] = user.username
+        logger.info(f"Login successful - Session after: {dict(session)}")
         
         return jsonify({
             'message': 'Login successful',
@@ -160,7 +163,7 @@ def send_message():
                 db_service._check_db_connection()
                 if not db_service.db_available:
                     db_working = False
-            except:
+            except Exception as e:
                 db_working = False
         
         if not db_working:
@@ -187,6 +190,7 @@ def send_message():
             
             # Get or create conversation
             conversation_id = data.get('conversation_id')
+            
             if not conversation_id:
                 conversation = db_service.create_conversation(user_id)
                 if not conversation:
@@ -225,8 +229,8 @@ def send_message():
             })
             
         except Exception as db_error:
+            logger.error(f"Database operation failed: {str(db_error)}")
             # Database operation failed, fall back to AI-only mode
-            logger.warning(f"Database operation failed, using fallback: {str(db_error)}")
             try:
                 ai_response = gemini_service.generate_response(user_message, [])
                 return jsonify({
@@ -354,5 +358,15 @@ def new_conversation():
     except Exception as e:
         logger.error(f"Error in new_conversation: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
+@chat_bp.route('/debug/session', methods=['GET'])
+def debug_session():
+    """Debug endpoint to check session information."""
+    return jsonify({
+        'session_data': dict(session),
+        'user_id': session.get('user_id'),
+        'username': session.get('username'),
+        'has_session': len(session) > 0
+    })
 
 

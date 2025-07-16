@@ -6,7 +6,7 @@
 
 2. **Error Details**: 
    - Login failed for user 'sa'
-   - Cannot open database "192.168.1.137" (the app was confusing IP with database name)
+   - Cannot open database "192.168.1.147" (the app was confusing IP with database name)
    - Missing pyodbc module in some cases
 
 ## ✅ What I Fixed:
@@ -98,7 +98,7 @@ start-backend.bat
 
 ## 📝 Next Steps to Fully Fix Database:
 
-1. **Verify SQL Server is running on 192.168.1.137:1433**
+1. **Verify SQL Server is running on 192.168.1.147:1433**
 2. **Check credentials: username 'sa', password 'Emre2003'**
 3. **Ensure database 'chatbot_db' exists**
 4. **Install SQL Server ODBC drivers if needed**

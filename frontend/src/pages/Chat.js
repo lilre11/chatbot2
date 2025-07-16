@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Row, Col, Card, Form, Button, ListGroup, Modal, Dropdown, Alert } from 'react-bootstrap';
-import axios from 'axios';
+import api from '../utils/axios';
 import RenameConversationModal from '../components/RenameConversationModal';
 
 const Chat = ({ user }) => {
@@ -14,8 +14,6 @@ const Chat = ({ user }) => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [error, setError] = useState('');
   const messagesEndRef = useRef(null);
-
-  const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     loadConversations();
@@ -31,9 +29,7 @@ const Chat = ({ user }) => {
 
   const loadConversations = async () => {
     try {
-      const response = await axios.get(`${apiBaseUrl}/api/chat/conversations`, {
-        withCredentials: true
-      });
+      const response = await api.get('/api/chat/conversations');
       setConversations(response.data.conversations);
       setError('');
     } catch (error) {
@@ -48,9 +44,7 @@ const Chat = ({ user }) => {
 
   const loadConversation = async (conversationId) => {
     try {
-      const response = await axios.get(`${apiBaseUrl}/api/chat/conversations/${conversationId}/messages`, {
-        withCredentials: true
-      });
+      const response = await api.get(`/api/chat/conversations/${conversationId}/messages`);
       setMessages(response.data.messages);
       setCurrentConversationId(conversationId);
       setError('');
@@ -82,7 +76,7 @@ const Chat = ({ user }) => {
     setMessages(prev => [...prev, newUserMessage]);
 
     try {
-      const response = await axios.post(`${apiBaseUrl}/api/chat/send`, {
+      const response = await api.post('/api/chat/send', {
         message: userMessage,
         conversation_id: currentConversationId
       }, {
