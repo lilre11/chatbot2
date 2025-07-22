@@ -2,81 +2,58 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from config import config
 import logging
-import pyodbc
-from urllib.parse import quote_plus
 import os
 import warnings
 from sqlalchemy.exc import SAWarning
 
-# Suppress SQLAlchemy warnings about unrecognized SQL Server version
+# SQLAlchemy uyarılarını bastır
 warnings.filterwarnings("ignore", category=SAWarning, message=".*Unrecognized server version info.*")
 
+# models.py'deki db objesini import et
+from models import db
+
+# Logging ayarları
 def setup_logging(app):
-    """Configure structured logging."""
     logging.basicConfig(
         level=getattr(logging, app.config.get('LOG_LEVEL', 'INFO')),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
     app.logger.setLevel(getattr(logging, app.config.get('LOG_LEVEL', 'INFO')))
 
+# Uygulama fabrikası
 def create_app(config_name=None):
-    """Application factory pattern."""
     if config_name is None:
         config_name = os.environ.get('FLASK_ENV', 'development')
-    
+
     app = Flask(__name__)
     app.config.from_object(config[config_name])
-    
-    # Session configuration for development
+
+    # Session cookie ayarları
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+    app.config['SESSION_COOKIE_SECURE'] = False
     app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_DOMAIN'] = None  # Allow localhost domains
-    
-    # Setup logging
+    app.config['SESSION_COOKIE_DOMAIN'] = None
+
+    # Logging setup
     setup_logging(app)
-    
-    # Configure CORS for React frontend
-    CORS(app, 
-         origins=app.config.get('CORS_ORIGINS', ['http://localhost:3000']), 
+
+    # CORS ayarları
+    CORS(app,
+         origins=app.config.get('CORS_ORIGINS', ['http://192.168.1.147']),
          supports_credentials=True,
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
-    
-    # Initialize SQLAlchemy database
-    try:
-        from models import db
-        db.init_app(app)
-        
-        # Test database connection
-        with app.app_context():
+
+    # SQLAlchemy başlat
+    db.init_app(app)
+
+    # Veritabanı tablolarını oluştur
+    with app.app_context():
+        try:
             db.create_all()
-            
-        app.logger.info("✅ SQLAlchemy database initialized successfully")
-        app.config['DB_WORKING'] = True
-        app.db_working = True
-        
-    except Exception as e:
-        app.logger.error(f"⚠️  Database initialization failed: {e}")
-        app.logger.warning("⚠️  App will run in fallback mode without database")
-        app.config['DB_WORKING'] = False
-        app.config['DB_AVAILABLE'] = False
-        app.db_working = False
-    
-    # Register blueprints
-    from routes.chat_routes import chat_bp
-    from routes.admin_routes import admin_bp
-    from routes.auth_routes import auth_bp
-    
-    app.register_blueprint(chat_bp, url_prefix='/api/chat')
-    app.register_blueprint(admin_bp, url_prefix='/api/admin')
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
-    
-    # Register main routes
-    from routes.main_routes import main_bp
-    app.register_blueprint(main_bp, url_prefix='/api')
-    
-    # Root route
+        except Exception as e:
+            app.logger.warning(f"Veritabanı bağlantısı başarısız. create_all atlandı: {e}")
+
+    # Root endpoint
     @app.route('/')
     def root():
         return jsonify({
@@ -91,29 +68,43 @@ def create_app(config_name=None):
                 'auth': '/api/auth'
             }
         })
-    
-    # Error handlers
+
+    # Blueprintleri import edip kaydet
+    from routes.chat_routes import chat_bp
+    from routes.admin_routes import admin_bp
+    from routes.auth_routes import auth_bp
+    from routes.main_routes import main_bp
+
+    app.register_blueprint(chat_bp, url_prefix='/api/chat')
+    app.register_blueprint(admin_bp, url_prefix='/api/admin')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(main_bp, url_prefix='/api')
+
+    # Error handlerlar
     @app.errorhandler(404)
     def not_found(error):
         return jsonify({'error': 'Not found'}), 404
-    
+
     @app.errorhandler(500)
     def internal_error(error):
         app.logger.error(f"Internal server error: {error}")
         return jsonify({'error': 'Internal server error'}), 500
-    
-    # Request logging middleware
+
+    # İstek öncesi loglama
     @app.before_request
     def log_request():
         app.logger.info(f"Request: {request.method} {request.path} from {request.remote_addr}")
-    
+
+    # Yanıt sonrası loglama
     @app.after_request
     def log_response(response):
         app.logger.info(f"Response: {response.status_code} for {request.method} {request.path}")
         return response
-    
+
     return app
 
+# Uygulama çalıştır
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=app.config['DEBUG'], host='0.0.0.0', port=5000)
+    app.run(debug=app.config.get('DEBUG', True), host='0.0.0.0', port=5000)
+

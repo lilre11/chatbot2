@@ -177,6 +177,7 @@ class DatabaseService:
     # Message operations
     def add_message(self, conversation_id: int, content: str, sender_type: str, token_count: int = 0) -> Optional[Message]:
         """Add a message to a conversation."""
+	print(">>> add_message çalıştı")
         try:
             message = Message(
                 conversation_id=conversation_id,
