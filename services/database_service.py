@@ -26,8 +26,18 @@ class DatabaseService:
                 from models import User
                 User.query.limit(1).first()
                 self.db_available = True
+                # Update app context if we're in one
+                if current_app:
+                    current_app.db_working = True
         except Exception as e:
             self.db_available = False
+            # Update app context if we're in one
+            try:
+                from flask import current_app
+                if current_app:
+                    current_app.db_working = False
+            except:
+                pass
     
     def _handle_db_error(self, operation: str, error: Exception):
         """Handle database errors gracefully."""
@@ -177,6 +187,7 @@ class DatabaseService:
     # Message operations
     def add_message(self, conversation_id: int, content: str, sender_type: str, token_count: int = 0) -> Optional[Message]:
         """Add a message to a conversation."""
+        print(">>> add_message çalıştı")
         try:
             message = Message(
                 conversation_id=conversation_id,

@@ -1,60 +1,46 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# Use official slim Python 3.11 image based on Debian 12 (bookworm)
+FROM python:3.11-slim-bookworm
 
 # Set working directory
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_ENV=production
+# Environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FLASK_ENV=production \
+    PATH="$PATH:/opt/mssql-tools18/bin"
 
-# Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+# Install system dependencies and Microsoft SQL Server ODBC Driver 17 + tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
         gcc \
         g++ \
-        unixodbc \
-        unixodbc-dev \
         curl \
         gnupg \
+        dirmngr \
+        apt-transport-https \
+        ca-certificates \
         lsb-release \
-    && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
-    && curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list \
-    && apt-get update \
-    && ACCEPT_EULA=Y apt-get install -y msodbcsql17 \
-    && rm -rf /var/lib/apt/lists/*
+        unixodbc \
+        unixodbc-dev \
+        libodbc1 && \
+    curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg && \
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/microsoft-prod.list && \
+    apt-get update && \
+    ACCEPT_EULA=Y apt-get install -y msodbcsql17 mssql-tools18 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Copy Python dependencies file and install
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy the entire application code to the container
 COPY . .
 
-# Copy and set up entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
-# Create logs directory
-RUN mkdir -p /app/logs
-
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash app \
-    && chown -R app:app /app
-USER app
-
-# Expose port
+# Expose the port Flask will run on
 EXPOSE 5000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5000/api/health || exit 1
+# Command to run the application
+CMD ["python", "app.py"]
 
-# Set entrypoint
-ENTRYPOINT ["/app/entrypoint.sh"]
-
-# Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "--access-logfile", "/app/logs/access.log", "--error-logfile", "/app/logs/error.log", "app:create_app()"] 
