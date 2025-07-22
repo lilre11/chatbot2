@@ -1,0 +1,38 @@
+# frontend/Dockerfile
+
+# --- Build Stage ---
+# Use a Node.js base image for building the application.
+# Node.js 18-alpine is a good balance of features and small size.
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package.json and package-lock.json (or yarn.lock) first.
+# This leverages Docker's build cache: npm install only runs if these files change.
+COPY package*.json ./
+
+# Install frontend dependencies.
+RUN npm install
+
+# Copy the rest of your frontend application code.
+COPY . .
+
+# Build the frontend application.
+# This runs the 'build' script defined in your package.json.
+# Example: If using Create React App, it creates a 'build' folder.
+RUN npm run build
+
+# --- Production Stage ---
+# Use a lightweight Nginx server to serve the static files in production.
+# This keeps the final image size small by excluding build tools.
+FROM nginx:alpine AS production
+
+# Copy the built static assets from the 'builder' stage into Nginx's serving directory.
+# Adjust '/app/build' if your build output is in a different folder (e.g., /app/dist).
+COPY --from=builder /app/build /usr/share/nginx/html
+
+# Expose the port Nginx will listen on (default for HTTP).
+EXPOSE 80
+
+# Command to run Nginx when the container starts, serving your application.
+CMD ["nginx", "-g", "daemon off;"]
