@@ -23,7 +23,11 @@ def health_check():
     from flask import current_app
     from datetime import datetime
     
+<<<<<<< HEAD
     db_status = 'healthy' if getattr(current_app, 'db_working', False) else 'unhealthy'
+=======
+    db_status = 'healthy' if current_app.config.get('DB_WORKING', False) else 'unhealthy'
+>>>>>>> 9a73ac3b82c95c16c903b967c83b92620fe2eda8
     
     return jsonify({
         'status': 'healthy',

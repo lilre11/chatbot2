@@ -26,6 +26,7 @@ class DatabaseService:
                 from models import User
                 User.query.limit(1).first()
                 self.db_available = True
+<<<<<<< HEAD
                 # Update app context if we're in one
                 if current_app:
                     current_app.db_working = True
@@ -38,6 +39,10 @@ class DatabaseService:
                     current_app.db_working = False
             except:
                 pass
+=======
+        except Exception as e:
+            self.db_available = False
+>>>>>>> 9a73ac3b82c95c16c903b967c83b92620fe2eda8
     
     def _handle_db_error(self, operation: str, error: Exception):
         """Handle database errors gracefully."""
@@ -187,7 +192,11 @@ class DatabaseService:
     # Message operations
     def add_message(self, conversation_id: int, content: str, sender_type: str, token_count: int = 0) -> Optional[Message]:
         """Add a message to a conversation."""
+<<<<<<< HEAD
         print(">>> add_message çalıştı")
+=======
+	print(">>> add_message çalıştı")
+>>>>>>> 9a73ac3b82c95c16c903b967c83b92620fe2eda8
         try:
             message = Message(
                 conversation_id=conversation_id,
